@@ -1,0 +1,8 @@
+source https://www.nuget.org/api/v2
+
+nuget FSharp.Core
+nuget MBrace.Core
+nuget MBrace.Flow
+nuget MBrace.Thespian
+nuget MBrace.Runtime
+nuget Streams
