@@ -83,21 +83,28 @@ cluster.ShowProcesses()
 
 // 4. Handling "distributed sequences" with CloudFlow
 
-// create an array of 1,000 random numbers
-let rng = System.Random()
-let data = Array.init 1000 (fun _ -> rng.Next(0,10))
+open System
+open System.IO
+
+// "Weird and wonderful words", from
+// http://www.oxforddictionaries.com/words/weird-and-wonderful-words
+let filePath = __SOURCE_DIRECTORY__ + "/rare-words.txt"
+
+// break a line into two parts: word, and definition
+let parseLine (txt:string) = 
+    let split = txt.Split('\t')
+    split.[0], split.[1]
 
 // CloudFlow behaves like a "traditional" Sequence, 
 // but distributes the work across workers:
-let dataAnalysis =
-    data
+let wordsByFirstLetter =
+    File.ReadAllLines(filePath)
     |> CloudFlow.OfArray
-    |> CloudFlow.map (fun x -> x + 1)
-    |> CloudFlow.filter (fun x -> x % 2 = 0)
-    |> CloudFlow.countBy (fun x -> x)
+    |> CloudFlow.map parseLine
+    |> CloudFlow.countBy (fun (word,def) -> word.[0])
     |> CloudFlow.toArray
 
-dataAnalysis |> cluster.Run
+wordsByFirstLetter |> cluster.Run
 
 
 // 5. Create an in-memory, distributed "array"
@@ -105,22 +112,21 @@ dataAnalysis |> cluster.Run
 
 // persist the array in memory, partitioned across workers:
 let inMemory =
-    data
+    File.ReadAllLines(filePath)
     |> CloudFlow.OfArray
-    |> CloudFlow.map (fun x -> x + 1)
+    |> CloudFlow.map parseLine
     |> CloudFlow.persist (StorageLevel.Memory)
     |> cluster.Run
 
 // you can now work against that array, "as if" it was one,
 // but effectively taking place across the cluster:
 inMemory
-|> CloudFlow.map (fun x ->
+|> CloudFlow.map (fun (word,def) ->
     // print out to verify on which worker 
     // the work is taking place
-    printfn "SOME WORK HAPPENING HERE"
-    x)
-|> CloudFlow.filter (fun x -> x % 3 = 0)
-|> CloudFlow.distinct
+    printfn "%s" word
+    (word,def))
+|> CloudFlow.filter (fun (word,def) -> word.Length > 10)
 |> CloudFlow.toArray
 |> cluster.Run
 
